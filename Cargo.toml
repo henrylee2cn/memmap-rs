@@ -1,10 +1,10 @@
 [package]
-name = "mapr"
+name = "mmapio"
 # NB: When modifying, also modify html_root_url in lib.rs
-version = "0.8.0"
-authors = ["dignifiedquire <me@dignifiedquire.com>", "Dan Burkert <dan@danburkert.com>"]
+version = "0.9.0"
+authors = ["henrylee2cn <henrylee2cn@gmail.com>", "dignifiedquire <me@dignifiedquire.com>", "Dan Burkert <dan@danburkert.com>"]
 license = "MIT/Apache-2.0"
-repository = "https://github.com/filecoin-project/mapr"
+repository = "https://github.com/henrylee2cn/mmapio"
 documentation = "https://docs.rs/mapr"
 description = "Cross-platform Rust API for memory-mapped file IO"
 keywords = ["mmap", "memory-map", "io", "file"]

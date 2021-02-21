@@ -15,6 +15,7 @@ A Rust library for cross-platform memory mapped IO.
 - [x] copy-on-write memory maps
 - [x] read-only memory maps
 - [x] stack support (`MAP_STACK` on unix)
+- [x] locked support (`MAP_LOCKED` on unix)
 - [x] executable memory maps
 - [ ] huge page support
 
