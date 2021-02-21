@@ -102,14 +102,6 @@ impl MmapOptions {
         self
     }
 
-    fn extend_len(&self, f: &File) {
-        // allocate space in the file
-        let _ = f.metadata().and_then(|m| -> Result<()> {
-            if m.len() <= self.offset {
-                f.set_len(self.offset + 1)
-            } else { Ok(()) }
-        });
-    }
 
     /// Configures the created memory mapped buffer to be `len` bytes long.
     ///
@@ -141,15 +133,39 @@ impl MmapOptions {
     /// Returns the configured length, or the length of the provided file.
     fn get_len(&self, file: &File) -> Result<usize> {
         self.len.map(Ok).unwrap_or_else(|| {
-            let len = file.metadata()?.len() - self.offset;
-            if len > (usize::MAX as u64) {
-                return Err(Error::new(
-                    ErrorKind::InvalidData,
-                    "memory map length overflows usize",
-                ));
+            let flen = file.metadata()?.len();
+            if flen <= self.offset {
+                return Ok(0)
             }
-            Ok(len as usize)
+            let len = flen - self.offset;
+            if len <= usize::MAX as u64 {
+                return Ok(len as usize);
+            }
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "memory map length overflows usize",
+            ))
+        }).and_then(|len| {
+            if len == 0 {
+                Err(Error::new(
+                    ErrorKind::InvalidData,
+                    "memory map must have a non-zero length",
+                ))
+            } else { Ok(len) }
         })
+    }
+
+    fn extend_len(&self, f: &File, len: usize) {
+        if len == 0 {
+            return
+        }
+        // allocate space in the file
+        let _ = f.metadata().and_then(|m| -> Result<()> {
+            let size = len as u64 + self.offset;
+            if m.len() < size {
+                f.set_len(size)
+            } else { Ok(()) }
+        });
     }
 
     /// Configures the anonymous memory map to be suitable for a process or thread stack.
@@ -220,8 +236,9 @@ impl MmapOptions {
     /// # }
     /// ```
     pub unsafe fn map(&self, file: &File) -> Result<Mmap> {
-        self.extend_len(file);
-        MmapInner::map(self.get_len(file)?, file, self.offset, self.locked, self.private).map(|inner| Mmap { inner: inner })
+        let len = self.get_len(file)?;
+        self.extend_len(file, len);
+        MmapInner::map(len, file, self.offset, self.locked, self.private).map(|inner| Mmap { inner: inner })
     }
 
     /// Creates a readable and executable memory map backed by a file.
@@ -231,8 +248,9 @@ impl MmapOptions {
     /// This method returns an error when the underlying system call fails, which can happen for a
     /// variety of reasons, such as when the file is not open with read permissions.
     pub unsafe fn map_exec(&self, file: &File) -> Result<Mmap> {
-        self.extend_len(file);
-        MmapInner::map_exec(self.get_len(file)?, file, self.offset, self.locked, self.private)
+        let len = self.get_len(file)?;
+        self.extend_len(file, len);
+        MmapInner::map_exec(len, file, self.offset, self.locked, self.private)
             .map(|inner| Mmap { inner: inner })
     }
 
@@ -267,8 +285,9 @@ impl MmapOptions {
     /// # }
     /// ```
     pub unsafe fn map_mut(&self, file: &File) -> Result<MmapMut> {
-        self.extend_len(file);
-        MmapInner::map_mut(self.get_len(file)?, file, self.offset, self.locked, self.private)
+        let len = self.get_len(file)?;
+        self.extend_len(file, len);
+        MmapInner::map_mut(len, file, self.offset, self.locked, self.private)
             .map(|inner| MmapMut { inner: inner })
     }
 
@@ -297,8 +316,9 @@ impl MmapOptions {
     /// # }
     /// ```
     pub unsafe fn map_copy(&self, file: &File) -> Result<MmapMut> {
-        self.extend_len(file);
-        MmapInner::map_copy(self.get_len(file)?, file, self.offset, self.locked)
+        let len = self.get_len(file)?;
+        self.extend_len(file, len);
+        MmapInner::map_copy(len, file, self.offset, self.locked)
             .map(|inner| MmapMut { inner: inner })
     }
 
@@ -754,7 +774,7 @@ pub trait AsMutT {
     }
     #[inline]
     unsafe fn write_t<T>(&mut self, src: &T) {
-        ptr::copy_nonoverlapping(src as *const T as *const u8, self.as_mut_raw_ptr(), std::mem::size_of::<T>())
+        ptr::copy_nonoverlapping((src as *const T) as *const u8, self.as_mut_raw_ptr(), std::mem::size_of::<T>());
     }
 }
 
@@ -839,7 +859,7 @@ mod test {
             .create(true)
             .open(&path)
             .unwrap();
-        let mmap = unsafe { MmapOptions::new().offset(1).map(&file) };
+        let mmap = unsafe { MmapOptions::new().len(1).map(&file) };
         assert!(mmap.is_ok());
         file.set_len(0);
         drop(mmap);
@@ -1175,6 +1195,7 @@ mod test {
     fn as_mut_t() {
         let tempdir = tempdir::TempDir::new("mmap").unwrap();
         let path = tempdir.path().join("mmap");
+        let path = "test.mmap";
 
         let mut file = OpenOptions::new()
             .read(true)
@@ -1206,6 +1227,7 @@ mod test {
                 .expect("map_mut");
             println!("{:?}", mmap.as_ref());
             let dst: &A = mmap.as_ref_t();
+            println!("{:?}", dst);
             assert_eq!(dst, &bak);
             drop(mmap);
         }
