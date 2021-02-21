@@ -2,22 +2,22 @@
 
 #![doc(html_root_url = "https://docs.rs/mmapio/0.7.0")]
 
-#[cfg(windows)]
-mod windows;
-#[cfg(windows)]
-use windows::MmapInner;
-
-#[cfg(unix)]
-mod unix;
-#[cfg(unix)]
-use unix::MmapInner;
-
 use std::fmt;
 use std::fs::File;
 use std::io::{Error, ErrorKind, Result};
 use std::ops::{Deref, DerefMut};
 use std::slice;
 use std::usize;
+
+#[cfg(unix)]
+use unix::MmapInner;
+#[cfg(windows)]
+use windows::MmapInner;
+
+#[cfg(windows)]
+mod windows;
+#[cfg(unix)]
+mod unix;
 
 /// A memory map builder, providing advanced options and flags for specifying memory map behavior.
 ///
@@ -422,6 +422,11 @@ impl Mmap {
         Ok(MmapMut { inner: self.inner })
     }
 
+    #[inline]
+    pub unsafe fn ptr(&self) -> *const u8 {
+        self.inner.ptr()
+    }
+
     /// Uses `mlock` to lock the whole memory map into RAM.
     ///
     /// Note this requires privileged access.
@@ -547,6 +552,16 @@ impl MmapMut {
     /// This method returns an error when the underlying system call fails.
     pub fn map_anon(length: usize) -> Result<MmapMut> {
         MmapOptions::new().len(length).map_anon()
+    }
+
+    #[inline]
+    pub unsafe fn ptr(&self) -> *const u8 {
+        self.inner.ptr()
+    }
+
+    #[inline]
+    pub unsafe fn mut_ptr(&mut self) -> *mut u8 {
+        self.inner.mut_ptr()
     }
 
     /// Flushes outstanding memory map modifications to disk.
