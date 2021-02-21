@@ -1,17 +1,14 @@
 [package]
-name = "memmap"
+name = "mapr"
 # NB: When modifying, also modify html_root_url in lib.rs
-version = "0.7.0"
-authors = ["Dan Burkert <dan@danburkert.com>"]
+version = "0.8.0"
+authors = ["dignifiedquire <me@dignifiedquire.com>", "Dan Burkert <dan@danburkert.com>"]
 license = "MIT/Apache-2.0"
-repository = "https://github.com/danburkert/memmap-rs"
-documentation = "https://docs.rs/memmap"
+repository = "https://github.com/filecoin-project/mapr"
+documentation = "https://docs.rs/mapr"
 description = "Cross-platform Rust API for memory-mapped file IO"
 keywords = ["mmap", "memory-map", "io", "file"]
-
-[badges]
-travis-ci = { repository = "danburkert/memmap-rs" }
-appveyor = { repository = "danburkert/mmap" }
+edition = "2018"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

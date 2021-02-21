@@ -1,9 +1,7 @@
 //! A cross-platform Rust API for memory mapped buffers.
 
-#![doc(html_root_url = "https://docs.rs/memmap/0.7.0")]
+#![doc(html_root_url = "https://docs.rs/mapr/0.7.0")]
 
-#[cfg(windows)]
-extern crate winapi;
 #[cfg(windows)]
 mod windows;
 #[cfg(windows)]
@@ -45,6 +43,8 @@ pub struct MmapOptions {
     offset: u64,
     len: Option<usize>,
     stack: bool,
+    locked: bool,
+    private: bool,
 }
 
 impl MmapOptions {
@@ -53,7 +53,7 @@ impl MmapOptions {
     /// # Example
     ///
     /// ```
-    /// use memmap::{MmapMut, MmapOptions};
+    /// use mapr::{MmapMut, MmapOptions};
     /// # use std::io::Result;
     ///
     /// # fn main() -> Result<()> {
@@ -83,17 +83,17 @@ impl MmapOptions {
     /// # Example
     ///
     /// ```
-    /// use memmap::MmapOptions;
+    /// use mapr::MmapOptions;
     /// use std::fs::File;
     ///
     /// # fn main() -> std::io::Result<()> {
     /// let mmap = unsafe {
     ///     MmapOptions::new()
-    ///                 .offset(10)
+    ///                 .offset(2)
     ///                 .map(&File::open("README.md")?)?
     /// };
-    /// assert_eq!(&b"A Rust library for cross-platform memory mapped IO."[..],
-    ///            &mmap[..51]);
+    /// assert_eq!(&b"mapr"[..],
+    ///            &mmap[..4]);
     /// # Ok(())
     /// # }
     /// ```
@@ -111,16 +111,16 @@ impl MmapOptions {
     /// # Example
     ///
     /// ```
-    /// use memmap::MmapOptions;
+    /// use mapr::MmapOptions;
     /// use std::fs::File;
     ///
     /// # fn main() -> std::io::Result<()> {
     /// let mmap = unsafe {
     ///     MmapOptions::new()
-    ///                 .len(8)
+    ///                 .len(6)
     ///                 .map(&File::open("README.md")?)?
     /// };
-    /// assert_eq!(&b"# memmap"[..], &mmap[..]);
+    /// assert_eq!(&b"# mapr"[..], &mmap[..]);
     /// # Ok(())
     /// # }
     /// ```
@@ -152,7 +152,7 @@ impl MmapOptions {
     /// # Example
     ///
     /// ```
-    /// use memmap::MmapOptions;
+    /// use mapr::MmapOptions;
     ///
     /// # fn main() -> std::io::Result<()> {
     /// let stack = MmapOptions::new().stack().len(4096).map_anon();
@@ -161,6 +161,24 @@ impl MmapOptions {
     /// ```
     pub fn stack(&mut self) -> &mut Self {
         self.stack = true;
+        self
+    }
+
+    /// Configures the memory map to be locked using.
+    ///
+    /// This option corresponds to the `MAP_LOCKED` flag on Linux, and has no effect on Window and MacOS.
+    ///
+    /// Note this requires privileged access.
+    pub fn lock(&mut self) -> &mut Self {
+        self.locked = true;
+        self
+    }
+
+    /// Configures the memory map to be private.
+    ///
+    /// This option corresponds to the `MAP_PRIVATE` flag on Linux.
+    pub fn private(&mut self) -> &mut Self {
+        self.private = true;
         self
     }
 
@@ -174,7 +192,7 @@ impl MmapOptions {
     /// # Example
     ///
     /// ```
-    /// use memmap::MmapOptions;
+    /// use mapr::MmapOptions;
     /// use std::fs::File;
     /// use std::io::Read;
     ///
@@ -193,7 +211,7 @@ impl MmapOptions {
     /// # }
     /// ```
     pub unsafe fn map(&self, file: &File) -> Result<Mmap> {
-        MmapInner::map(self.get_len(file)?, file, self.offset).map(|inner| Mmap { inner: inner })
+        MmapInner::map(self.get_len(file)?, file, self.offset, self.locked, self.private).map(|inner| Mmap { inner: inner })
     }
 
     /// Creates a readable and executable memory map backed by a file.
@@ -203,7 +221,7 @@ impl MmapOptions {
     /// This method returns an error when the underlying system call fails, which can happen for a
     /// variety of reasons, such as when the file is not open with read permissions.
     pub unsafe fn map_exec(&self, file: &File) -> Result<Mmap> {
-        MmapInner::map_exec(self.get_len(file)?, file, self.offset)
+        MmapInner::map_exec(self.get_len(file)?, file, self.offset, self.locked, self.private)
             .map(|inner| Mmap { inner: inner })
     }
 
@@ -217,13 +235,10 @@ impl MmapOptions {
     /// # Example
     ///
     /// ```
-    /// # extern crate memmap;
-    /// # extern crate tempdir;
-    /// #
     /// use std::fs::OpenOptions;
     /// use std::path::PathBuf;
     ///
-    /// use memmap::MmapOptions;
+    /// use mapr::MmapOptions;
     /// #
     /// # fn main() -> std::io::Result<()> {
     /// # let tempdir = tempdir::TempDir::new("mmap")?;
@@ -241,7 +256,7 @@ impl MmapOptions {
     /// # }
     /// ```
     pub unsafe fn map_mut(&self, file: &File) -> Result<MmapMut> {
-        MmapInner::map_mut(self.get_len(file)?, file, self.offset)
+        MmapInner::map_mut(self.get_len(file)?, file, self.offset, self.locked, self.private)
             .map(|inner| MmapMut { inner: inner })
     }
 
@@ -258,7 +273,7 @@ impl MmapOptions {
     /// # Example
     ///
     /// ```
-    /// use memmap::MmapOptions;
+    /// use mapr::MmapOptions;
     /// use std::fs::File;
     /// use std::io::Write;
     ///
@@ -270,7 +285,7 @@ impl MmapOptions {
     /// # }
     /// ```
     pub unsafe fn map_copy(&self, file: &File) -> Result<MmapMut> {
-        MmapInner::map_copy(self.get_len(file)?, file, self.offset)
+        MmapInner::map_copy(self.get_len(file)?, file, self.offset, self.locked)
             .map(|inner| MmapMut { inner: inner })
     }
 
@@ -283,7 +298,7 @@ impl MmapOptions {
     ///
     /// This method returns an error when the underlying system call fails.
     pub fn map_anon(&self) -> Result<MmapMut> {
-        MmapInner::map_anon(self.len.unwrap_or(0), self.stack).map(|inner| MmapMut { inner: inner })
+        MmapInner::map_anon(self.len.unwrap_or(0), self.stack, self.locked, self.private).map(|inner| MmapMut { inner: inner })
     }
 }
 
@@ -315,14 +330,14 @@ impl MmapOptions {
 /// ## Example
 ///
 /// ```
-/// use memmap::MmapOptions;
+/// use mapr::MmapOptions;
 /// use std::io::Write;
 /// use std::fs::File;
 ///
 /// # fn main() -> std::io::Result<()> {
 /// let file = File::open("README.md")?;
 /// let mmap = unsafe { MmapOptions::new().map(&file)? };
-/// assert_eq!(b"# memmap", &mmap[0..8]);
+/// assert_eq!(b"# mapr", &mmap[..6]);
 /// # Ok(())
 /// # }
 /// ```
@@ -350,7 +365,7 @@ impl Mmap {
     /// use std::fs::File;
     /// use std::io::Read;
     ///
-    /// use memmap::Mmap;
+    /// use mapr::Mmap;
     ///
     /// # fn main() -> std::io::Result<()> {
     /// let mut file = File::open("README.md")?;
@@ -380,10 +395,7 @@ impl Mmap {
     /// # Example
     ///
     /// ```
-    /// # extern crate memmap;
-    /// # extern crate tempdir;
-    /// #
-    /// use memmap::Mmap;
+    /// use mapr::Mmap;
     /// use std::ops::DerefMut;
     /// use std::io::Write;
     /// # use std::fs::OpenOptions;
@@ -408,6 +420,26 @@ impl Mmap {
     pub fn make_mut(mut self) -> Result<MmapMut> {
         self.inner.make_mut()?;
         Ok(MmapMut { inner: self.inner })
+    }
+
+    /// Uses `mlock` to lock the whole memory map into RAM.
+    ///
+    /// Note this requires privileged access.
+    #[cfg(unix)]
+    pub fn mlock(&mut self) -> Result<()> {
+        self.inner.mlock()?;
+        
+        Ok(())
+    }
+
+    /// Uses `munlock` to unlock the whole memory map.
+    ///
+    /// Note this requires privileged access.
+    #[cfg(unix)]
+    pub fn munlock(&mut self) -> Result<()> {
+        self.inner.munlock()?;
+        
+        Ok(())
     }
 }
 
@@ -480,13 +512,10 @@ impl MmapMut {
     /// # Example
     ///
     /// ```
-    /// # extern crate memmap;
-    /// # extern crate tempdir;
-    /// #
     /// use std::fs::OpenOptions;
     /// use std::path::PathBuf;
     ///
-    /// use memmap::MmapMut;
+    /// use mapr::MmapMut;
     /// #
     /// # fn main() -> std::io::Result<()> {
     /// # let tempdir = tempdir::TempDir::new("mmap")?;
@@ -529,14 +558,11 @@ impl MmapMut {
     /// # Example
     ///
     /// ```
-    /// # extern crate memmap;
-    /// # extern crate tempdir;
-    /// #
     /// use std::fs::OpenOptions;
     /// use std::io::Write;
     /// use std::path::PathBuf;
     ///
-    /// use memmap::MmapMut;
+    /// use mapr::MmapMut;
     ///
     /// # fn main() -> std::io::Result<()> {
     /// # let tempdir = tempdir::TempDir::new("mmap")?;
@@ -605,12 +631,10 @@ impl MmapMut {
     /// # Example
     ///
     /// ```
-    /// # extern crate memmap;
-    /// #
     /// use std::io::Write;
     /// use std::path::PathBuf;
     ///
-    /// use memmap::{Mmap, MmapMut};
+    /// use mapr::{Mmap, MmapMut};
     ///
     /// # fn main() -> std::io::Result<()> {
     /// let mut mmap = MmapMut::map_anon(128)?;
@@ -637,6 +661,26 @@ impl MmapMut {
     pub fn make_exec(mut self) -> Result<Mmap> {
         self.inner.make_exec()?;
         Ok(Mmap { inner: self.inner })
+    }
+
+    /// Uses `mlock` to lock the whole memory map into RAM.
+    ///
+    /// Note this requires privileged access.
+    #[cfg(unix)]
+    pub fn mlock(&mut self) -> Result<()> {
+        self.inner.mlock()?;
+        
+        Ok(())
+    }
+
+    /// Uses `munlock` to unlock the whole memory map.
+    ///
+    /// Note this requires privileged access.
+    #[cfg(unix)]
+    pub fn munlock(&mut self) -> Result<()> {
+        self.inner.munlock()?;
+        
+        Ok(())
     }
 }
 
@@ -681,11 +725,6 @@ impl fmt::Debug for MmapMut {
 
 #[cfg(test)]
 mod test {
-
-    extern crate tempdir;
-    #[cfg(windows)]
-    extern crate winapi;
-
     use std::fs::OpenOptions;
     use std::io::{Read, Write};
     #[cfg(windows)]
