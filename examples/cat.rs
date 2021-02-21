@@ -2,7 +2,7 @@ use std::env;
 use std::fs::File;
 use std::io::{self, Write};
 
-use mapr::Mmap;
+use mmapio::Mmap;
 
 /// Output a file's contents to stdout. The file path must be provided as the first process
 /// argument.

@@ -1,6 +1,6 @@
 //! A cross-platform Rust API for memory mapped buffers.
 
-#![doc(html_root_url = "https://docs.rs/mapr/0.7.0")]
+#![doc(html_root_url = "https://docs.rs/mmapio/0.7.0")]
 
 #[cfg(windows)]
 mod windows;
@@ -53,7 +53,7 @@ impl MmapOptions {
     /// # Example
     ///
     /// ```
-    /// use mapr::{MmapMut, MmapOptions};
+    /// use mmapio::{MmapMut, MmapOptions};
     /// # use std::io::Result;
     ///
     /// # fn main() -> Result<()> {
@@ -83,7 +83,7 @@ impl MmapOptions {
     /// # Example
     ///
     /// ```
-    /// use mapr::MmapOptions;
+    /// use mmapio::MmapOptions;
     /// use std::fs::File;
     ///
     /// # fn main() -> std::io::Result<()> {
@@ -92,7 +92,7 @@ impl MmapOptions {
     ///                 .offset(2)
     ///                 .map(&File::open("README.md")?)?
     /// };
-    /// assert_eq!(&b"mapr"[..],
+    /// assert_eq!(&b"mmapio"[..],
     ///            &mmap[..4]);
     /// # Ok(())
     /// # }
@@ -111,7 +111,7 @@ impl MmapOptions {
     /// # Example
     ///
     /// ```
-    /// use mapr::MmapOptions;
+    /// use mmapio::MmapOptions;
     /// use std::fs::File;
     ///
     /// # fn main() -> std::io::Result<()> {
@@ -120,7 +120,7 @@ impl MmapOptions {
     ///                 .len(6)
     ///                 .map(&File::open("README.md")?)?
     /// };
-    /// assert_eq!(&b"# mapr"[..], &mmap[..]);
+    /// assert_eq!(&b"# mmapio"[..], &mmap[..]);
     /// # Ok(())
     /// # }
     /// ```
@@ -152,7 +152,7 @@ impl MmapOptions {
     /// # Example
     ///
     /// ```
-    /// use mapr::MmapOptions;
+    /// use mmapio::MmapOptions;
     ///
     /// # fn main() -> std::io::Result<()> {
     /// let stack = MmapOptions::new().stack().len(4096).map_anon();
@@ -192,7 +192,7 @@ impl MmapOptions {
     /// # Example
     ///
     /// ```
-    /// use mapr::MmapOptions;
+    /// use mmapio::MmapOptions;
     /// use std::fs::File;
     /// use std::io::Read;
     ///
@@ -238,7 +238,7 @@ impl MmapOptions {
     /// use std::fs::OpenOptions;
     /// use std::path::PathBuf;
     ///
-    /// use mapr::MmapOptions;
+    /// use mmapio::MmapOptions;
     /// #
     /// # fn main() -> std::io::Result<()> {
     /// # let tempdir = tempdir::TempDir::new("mmap")?;
@@ -273,7 +273,7 @@ impl MmapOptions {
     /// # Example
     ///
     /// ```
-    /// use mapr::MmapOptions;
+    /// use mmapio::MmapOptions;
     /// use std::fs::File;
     /// use std::io::Write;
     ///
@@ -330,14 +330,14 @@ impl MmapOptions {
 /// ## Example
 ///
 /// ```
-/// use mapr::MmapOptions;
+/// use mmapio::MmapOptions;
 /// use std::io::Write;
 /// use std::fs::File;
 ///
 /// # fn main() -> std::io::Result<()> {
 /// let file = File::open("README.md")?;
 /// let mmap = unsafe { MmapOptions::new().map(&file)? };
-/// assert_eq!(b"# mapr", &mmap[..6]);
+/// assert_eq!(b"# mmapio", &mmap[..6]);
 /// # Ok(())
 /// # }
 /// ```
@@ -365,7 +365,7 @@ impl Mmap {
     /// use std::fs::File;
     /// use std::io::Read;
     ///
-    /// use mapr::Mmap;
+    /// use mmapio::Mmap;
     ///
     /// # fn main() -> std::io::Result<()> {
     /// let mut file = File::open("README.md")?;
@@ -395,7 +395,7 @@ impl Mmap {
     /// # Example
     ///
     /// ```
-    /// use mapr::Mmap;
+    /// use mmapio::Mmap;
     /// use std::ops::DerefMut;
     /// use std::io::Write;
     /// # use std::fs::OpenOptions;
@@ -428,7 +428,7 @@ impl Mmap {
     #[cfg(unix)]
     pub fn mlock(&mut self) -> Result<()> {
         self.inner.mlock()?;
-        
+
         Ok(())
     }
 
@@ -438,7 +438,7 @@ impl Mmap {
     #[cfg(unix)]
     pub fn munlock(&mut self) -> Result<()> {
         self.inner.munlock()?;
-        
+
         Ok(())
     }
 }
@@ -515,7 +515,7 @@ impl MmapMut {
     /// use std::fs::OpenOptions;
     /// use std::path::PathBuf;
     ///
-    /// use mapr::MmapMut;
+    /// use mmapio::MmapMut;
     /// #
     /// # fn main() -> std::io::Result<()> {
     /// # let tempdir = tempdir::TempDir::new("mmap")?;
@@ -562,7 +562,7 @@ impl MmapMut {
     /// use std::io::Write;
     /// use std::path::PathBuf;
     ///
-    /// use mapr::MmapMut;
+    /// use mmapio::MmapMut;
     ///
     /// # fn main() -> std::io::Result<()> {
     /// # let tempdir = tempdir::TempDir::new("mmap")?;
@@ -634,7 +634,7 @@ impl MmapMut {
     /// use std::io::Write;
     /// use std::path::PathBuf;
     ///
-    /// use mapr::{Mmap, MmapMut};
+    /// use mmapio::{Mmap, MmapMut};
     ///
     /// # fn main() -> std::io::Result<()> {
     /// let mut mmap = MmapMut::map_anon(128)?;
@@ -669,7 +669,7 @@ impl MmapMut {
     #[cfg(unix)]
     pub fn mlock(&mut self) -> Result<()> {
         self.inner.mlock()?;
-        
+
         Ok(())
     }
 
@@ -679,7 +679,7 @@ impl MmapMut {
     #[cfg(unix)]
     pub fn munlock(&mut self) -> Result<()> {
         self.inner.munlock()?;
-        
+
         Ok(())
     }
 }
