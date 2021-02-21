@@ -2,7 +2,7 @@
 
 #![doc(html_root_url = "https://docs.rs/mmapio/0.7.0")]
 
-use std::fmt;
+use std::{fmt, ptr};
 use std::fs::File;
 use std::io::{Error, ErrorKind, Result};
 use std::ops::{Deref, DerefMut};
@@ -100,6 +100,15 @@ impl MmapOptions {
     pub fn offset(&mut self, offset: u64) -> &mut Self {
         self.offset = offset;
         self
+    }
+
+    fn extend_len(&self, f: &File) {
+        // allocate space in the file
+        let _ = f.metadata().and_then(|m| -> Result<()> {
+            if m.len() <= self.offset {
+                f.set_len(self.offset + 1)
+            } else { Ok(()) }
+        });
     }
 
     /// Configures the created memory mapped buffer to be `len` bytes long.
@@ -211,6 +220,7 @@ impl MmapOptions {
     /// # }
     /// ```
     pub unsafe fn map(&self, file: &File) -> Result<Mmap> {
+        self.extend_len(file);
         MmapInner::map(self.get_len(file)?, file, self.offset, self.locked, self.private).map(|inner| Mmap { inner: inner })
     }
 
@@ -221,6 +231,7 @@ impl MmapOptions {
     /// This method returns an error when the underlying system call fails, which can happen for a
     /// variety of reasons, such as when the file is not open with read permissions.
     pub unsafe fn map_exec(&self, file: &File) -> Result<Mmap> {
+        self.extend_len(file);
         MmapInner::map_exec(self.get_len(file)?, file, self.offset, self.locked, self.private)
             .map(|inner| Mmap { inner: inner })
     }
@@ -256,6 +267,7 @@ impl MmapOptions {
     /// # }
     /// ```
     pub unsafe fn map_mut(&self, file: &File) -> Result<MmapMut> {
+        self.extend_len(file);
         MmapInner::map_mut(self.get_len(file)?, file, self.offset, self.locked, self.private)
             .map(|inner| MmapMut { inner: inner })
     }
@@ -285,6 +297,7 @@ impl MmapOptions {
     /// # }
     /// ```
     pub unsafe fn map_copy(&self, file: &File) -> Result<MmapMut> {
+        self.extend_len(file);
         MmapInner::map_copy(self.get_len(file)?, file, self.offset, self.locked)
             .map(|inner| MmapMut { inner: inner })
     }
@@ -422,10 +435,6 @@ impl Mmap {
         Ok(MmapMut { inner: self.inner })
     }
 
-    #[inline]
-    pub unsafe fn ptr(&self) -> *const u8 {
-        self.inner.ptr()
-    }
 
     /// Uses `mlock` to lock the whole memory map into RAM.
     ///
@@ -467,9 +476,9 @@ impl AsRef<[u8]> for Mmap {
 impl fmt::Debug for Mmap {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Mmap")
-            .field("ptr", &self.as_ptr())
-            .field("len", &self.len())
-            .finish()
+           .field("ptr", &self.as_ptr())
+           .field("len", &self.len())
+           .finish()
     }
 }
 
@@ -554,15 +563,6 @@ impl MmapMut {
         MmapOptions::new().len(length).map_anon()
     }
 
-    #[inline]
-    pub unsafe fn ptr(&self) -> *const u8 {
-        self.inner.ptr()
-    }
-
-    #[inline]
-    pub unsafe fn mut_ptr(&mut self) -> *mut u8 {
-        self.inner.mut_ptr()
-    }
 
     /// Flushes outstanding memory map modifications to disk.
     ///
@@ -732,11 +732,53 @@ impl AsMut<[u8]> for MmapMut {
 impl fmt::Debug for MmapMut {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("MmapMut")
-            .field("ptr", &self.as_ptr())
-            .field("len", &self.len())
-            .finish()
+           .field("ptr", &self.as_ptr())
+           .field("len", &self.len())
+           .finish()
     }
 }
+
+pub trait AsRefT {
+    unsafe fn as_raw_ptr(&self) -> *const u8;
+    #[inline]
+    unsafe fn as_ref_t<'a, T>(&self) -> &'a T {
+        &*(self.as_raw_ptr() as *const T)
+    }
+}
+
+pub trait AsMutT {
+    unsafe fn as_mut_raw_ptr(&mut self) -> *mut u8;
+    #[inline]
+    unsafe fn as_mut_t<'a, T>(&mut self) -> &'a mut T {
+        &mut *(self.as_mut_raw_ptr() as *mut T)
+    }
+    #[inline]
+    unsafe fn write_t<T>(&mut self, src: &T) {
+        ptr::copy_nonoverlapping(src as *const T as *const u8, self.as_mut_raw_ptr(), std::mem::size_of::<T>())
+    }
+}
+
+impl AsRefT for MmapMut {
+    #[inline]
+    unsafe fn as_raw_ptr(&self) -> *const u8 {
+        self.inner.ptr()
+    }
+}
+
+impl AsMutT for MmapMut {
+    #[inline]
+    unsafe fn as_mut_raw_ptr(&mut self) -> *mut u8 {
+        self.inner.mut_ptr()
+    }
+}
+
+impl AsRefT for Mmap {
+    #[inline]
+    unsafe fn as_raw_ptr(&self) -> *const u8 {
+        self.inner.ptr()
+    }
+}
+
 
 #[cfg(test)]
 mod test {
@@ -749,6 +791,8 @@ mod test {
 
     #[cfg(windows)]
     use winapi::um::winnt::GENERIC_ALL;
+
+    use crate::{AsMutT, AsRefT};
 
     use super::{Mmap, MmapMut, MmapOptions};
 
@@ -789,15 +833,24 @@ mod test {
     fn map_empty_file() {
         let tempdir = tempdir::TempDir::new("mmap").unwrap();
         let path = tempdir.path().join("mmap");
-
         let file = OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
             .open(&path)
             .unwrap();
+        let mmap = unsafe { MmapOptions::new().offset(1).map(&file) };
+        assert!(mmap.is_ok());
+        file.set_len(0);
+        drop(mmap);
+
+        let file = OpenOptions::new()
+            .read(true)
+            .open(&path)
+            .unwrap();
         let mmap = unsafe { Mmap::map(&file) };
         assert!(mmap.is_err());
+        drop(mmap);
     }
 
     #[test]
@@ -996,7 +1049,7 @@ mod test {
         let tempdir = tempdir::TempDir::new("mmap").unwrap();
         let mut options = OpenOptions::new();
         #[cfg(windows)]
-        options.access_mode(GENERIC_ALL);
+            options.access_mode(GENERIC_ALL);
 
         let file = options
             .read(true)
@@ -1016,7 +1069,7 @@ mod test {
 
         let mut options = OpenOptions::new();
         #[cfg(windows)]
-        options.access_mode(GENERIC_ALL);
+            options.access_mode(GENERIC_ALL);
 
         let mut file = options
             .read(true)
@@ -1062,7 +1115,7 @@ mod test {
 
         let mut options = OpenOptions::new();
         #[cfg(windows)]
-        options.access_mode(GENERIC_ALL);
+            options.access_mode(GENERIC_ALL);
 
         let mut file = options
             .read(true)
@@ -1110,5 +1163,51 @@ mod test {
         let mmap = mmap.make_mut().expect("make_mut");
         let mmap = mmap.make_exec().expect("make_exec");
         drop(mmap);
+    }
+
+    #[repr(C)]
+    #[derive(Debug, PartialEq)]
+    struct A {
+        b: [u8; 128],
+    }
+
+    #[test]
+    fn as_mut_t() {
+        let tempdir = tempdir::TempDir::new("mmap").unwrap();
+        let path = tempdir.path().join("mmap");
+
+        let mut file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(&path)
+            .unwrap();
+        let mut opt = MmapOptions::new();
+        opt.len(std::mem::size_of::<A>()).offset(0);
+        unsafe {
+            let mut mmap = opt
+                .map_mut(&file)
+                .expect("map_mut");
+            let mut src = A { b: [0; 128] };
+            src.b[0..4].copy_from_slice(&[2, 3, 4, 8]);
+            let bak = A { b: src.b.clone() };
+            mmap.write_t(&src);
+            println!("{:?}", mmap.as_ref());
+            let dst: &A = mmap.as_mut_t();
+            assert_eq!(dst, &bak);
+            drop(mmap);
+
+            let mut file = OpenOptions::new()
+                .read(true)
+                .open(&path)
+                .unwrap();
+            let mmap = opt
+                .map(&file)
+                .expect("map_mut");
+            println!("{:?}", mmap.as_ref());
+            let dst: &A = mmap.as_ref_t();
+            assert_eq!(dst, &bak);
+            drop(mmap);
+        }
     }
 }
