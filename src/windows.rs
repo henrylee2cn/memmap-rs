@@ -1,14 +1,14 @@
+use std::{io, mem, ptr};
 use std::fs::File;
 use std::os::raw::c_void;
 use std::os::windows::io::{AsRawHandle, RawHandle};
-use std::{io, mem, ptr};
 
 use winapi::shared::basetsd::SIZE_T;
 use winapi::shared::minwindef::DWORD;
 use winapi::um::handleapi::{CloseHandle, INVALID_HANDLE_VALUE};
 use winapi::um::memoryapi::{
-    CreateFileMappingW, FlushViewOfFile, MapViewOfFile, UnmapViewOfFile, VirtualProtect,
-    FILE_MAP_ALL_ACCESS, FILE_MAP_COPY, FILE_MAP_EXECUTE, FILE_MAP_READ, FILE_MAP_WRITE,
+    CreateFileMappingW, FILE_MAP_ALL_ACCESS, FILE_MAP_COPY, FILE_MAP_EXECUTE, FILE_MAP_READ,
+    FILE_MAP_WRITE, FlushViewOfFile, MapViewOfFile, UnmapViewOfFile, VirtualProtect,
 };
 use winapi::um::sysinfoapi::GetSystemInfo;
 use winapi::um::winnt::{
@@ -21,6 +21,12 @@ pub struct MmapInner {
     ptr: *mut c_void,
     len: usize,
     copy: bool,
+}
+
+impl Default for MmapInner {
+    fn default() -> MmapInner {
+        MmapInner { file: None, ptr: ptr::null_mut(), len: 0, copy: false }
+    }
 }
 
 impl MmapInner {

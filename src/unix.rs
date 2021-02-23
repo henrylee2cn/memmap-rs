@@ -1,41 +1,47 @@
 extern crate libc;
 
+use std::{io, ptr};
 use std::fs::File;
 use std::os::unix::io::{AsRawFd, RawFd};
-use std::{io, ptr};
 
 #[cfg(any(
-    all(target_os = "linux", not(target_arch = "mips")),
-    target_os = "freebsd",
-    target_os = "android"
+all(target_os = "linux", not(target_arch = "mips")),
+target_os = "freebsd",
+target_os = "android"
 ))]
 const MAP_STACK: libc::c_int = libc::MAP_STACK;
 
 #[cfg(not(any(
-    all(target_os = "linux", not(target_arch = "mips")),
-    target_os = "freebsd",
-    target_os = "android"
+all(target_os = "linux", not(target_arch = "mips")),
+target_os = "freebsd",
+target_os = "android"
 )))]
 const MAP_STACK: libc::c_int = 0;
 
 
 #[cfg(any(
-    all(target_os = "linux", not(target_arch = "mips")),
-    target_os = "freebsd",
-    target_os = "android"
+all(target_os = "linux", not(target_arch = "mips")),
+target_os = "freebsd",
+target_os = "android"
 ))]
 const MAP_LOCKED: libc::c_int = libc::MAP_LOCKED;
 
 #[cfg(not(any(
-    all(target_os = "linux", not(target_arch = "mips")),
-    target_os = "freebsd",
-    target_os = "android"
+all(target_os = "linux", not(target_arch = "mips")),
+target_os = "freebsd",
+target_os = "android"
 )))]
 const MAP_LOCKED: libc::c_int = 0;
 
 pub struct MmapInner {
     ptr: *mut libc::c_void,
     len: usize,
+}
+
+impl Default for MmapInner {
+    fn default() -> MmapInner {
+        MmapInner { ptr: ptr::null_mut(), len: 0 }
+    }
 }
 
 impl MmapInner {
@@ -223,7 +229,7 @@ impl MmapInner {
             }
         }
     }
-    
+
     pub fn munlock(&self) -> io::Result<()> {
         unsafe {
             if libc::munlock(self.ptr, self.len) == 0 {
@@ -242,7 +248,7 @@ impl Drop for MmapInner {
             assert!(
                 libc::munmap(
                     self.ptr.offset(-(alignment as isize)),
-                    (self.len + alignment) as libc::size_t
+                    (self.len + alignment) as libc::size_t,
                 ) == 0,
                 "unable to unmap mmap: {}",
                 io::Error::last_os_error()
@@ -252,6 +258,7 @@ impl Drop for MmapInner {
 }
 
 unsafe impl Sync for MmapInner {}
+
 unsafe impl Send for MmapInner {}
 
 fn page_size() -> usize {

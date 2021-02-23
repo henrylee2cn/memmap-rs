@@ -135,7 +135,7 @@ impl MmapOptions {
         self.len.map(Ok).unwrap_or_else(|| {
             let flen = file.metadata()?.len();
             if flen <= self.offset {
-                return Ok(0)
+                return Ok(0);
             }
             let len = flen - self.offset;
             if len <= usize::MAX as u64 {
@@ -144,7 +144,7 @@ impl MmapOptions {
             return Err(Error::new(
                 ErrorKind::InvalidData,
                 "memory map length overflows usize",
-            ))
+            ));
         }).and_then(|len| {
             if len == 0 {
                 Err(Error::new(
@@ -157,7 +157,7 @@ impl MmapOptions {
 
     fn extend_len(&self, f: &File, len: usize) {
         if len == 0 {
-            return
+            return;
         }
         // allocate space in the file
         let _ = f.metadata().and_then(|m| -> Result<()> {
@@ -378,6 +378,7 @@ impl MmapOptions {
 /// See [`MmapMut`] for the mutable version.
 ///
 /// [`map()`]: Mmap::map()
+#[derive(Default)]
 pub struct Mmap {
     inner: MmapInner,
 }
@@ -529,6 +530,7 @@ impl fmt::Debug for Mmap {
 /// out of process. Applications must consider the risk and take appropriate precautions when using
 /// file-backed maps. Solutions such as file permissions, locks or process-private (e.g. unlinked)
 /// files exist but are platform specific and limited.
+#[derive(Default)]
 pub struct MmapMut {
     inner: MmapInner,
 }
@@ -1185,14 +1187,14 @@ mod test {
         drop(mmap);
     }
 
-    #[repr(C)]
-    #[derive(Debug, PartialEq)]
-    struct A {
-        b: [u8; 128],
-    }
-
     #[test]
     fn as_mut_t() {
+        #[repr(C)]
+        #[derive(Debug, PartialEq)]
+        struct A {
+            b: [u8; 128],
+        }
+
         let tempdir = tempdir::TempDir::new("mmap").unwrap();
         let path = tempdir.path().join("mmap");
         let path = "test.mmap";
