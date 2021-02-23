@@ -1,7 +1,7 @@
 [package]
 name = "mmapio"
 # NB: When modifying, also modify html_root_url in lib.rs
-version = "0.9.0"
+version = "0.9.1"
 authors = ["henrylee2cn <henrylee2cn@gmail.com>", "dignifiedquire <me@dignifiedquire.com>", "Dan Burkert <dan@danburkert.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/henrylee2cn/mmapio"
